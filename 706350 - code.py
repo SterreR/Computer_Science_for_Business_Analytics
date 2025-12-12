@@ -6,13 +6,11 @@ import hashlib
 import json
 import re
 
-
 pd.set_option('display.max_colwidth', None)
 
 #%% Functions
 def standardise_title(df):
     """
-    Gearchiveerd: 05-12-2025 18:05
     Standardise the 'title' column of the TV-dataset:
     - Convert to lowercase
     - Remove double and trailing spaces
@@ -40,7 +38,6 @@ def standardise_title(df):
         r'\b(amazon|newegg\.com|best buy|thenerds\.net)\b', '', regex = True
         )
     
-
     # Convert unit notations to a standard format
     df['title'] = df['title'].str.replace(
         r'(?<=\d)\s*[\"”“″]', 'inch', regex = True
@@ -153,11 +150,6 @@ def find_all_unique_shingles(product_shingles):
 
 
 def get_model_words(title):
-    """
-    Docstring for get_model_words
-    
-    :param title: Description
-    """
     pattern = re.compile(r'[a-z0-9]*(([0-9]+[^0-9, ]+)|([^0-9, ]+[0-9]+))[a-z0-9]*')
     
     if pd.isna(title):
@@ -173,11 +165,6 @@ def get_model_words(title):
     return model_words
 
 def model_words_per_product(df):
-    """
-    Docstring for model_words_per_product
-    
-    :param df: Description
-    """
     product_model_words = {}
     for index, row in df.iterrows():
         product_ID = row['product_ID']
@@ -188,11 +175,6 @@ def model_words_per_product(df):
     return product_model_words
 
 def find_all_unique_model_words(product_model_words):
-    """
-    Docstring for find_all_unique_model_words
-    
-    :param product_model_words: Description
-    """
     all_unique_model_words = set()
     for model_words in product_model_words.values():
         all_unique_model_words.update(model_words)
@@ -230,14 +212,6 @@ def hash_LSH(band_signature):
     return hashlib.sha1(str(band_signature).encode()).hexdigest()
 
 def find_cand_pairs(b, r, signature_matrix):
-    """
-    Find candidate pairs using Locality Sensitive Hashing (LSH).
-    
-    :param b: Description
-    :param r: Description
-    :param signature_matrix: Description
-    """
-
     cand_pairs = set()
     for band in range(b):
         buckets = {}
@@ -291,13 +265,6 @@ def compute_jaccard_for_cand_pairs(cand_pairs, product_features, t):
     return pred_duplicates
 
 def calculate_f_1_score(TP, FP, FN):
-    """
-    Docstring for calculate_f_1_score
-    
-    :param TP: Description
-    :param FP: Description
-    :param FN: Description
-    """
     denom  = 2 * TP + FP + FN
     if denom == 0:
         return 0.0
@@ -358,8 +325,6 @@ df = pd.DataFrame(records)
 # Add a unique product ID for each row
 df.insert(0, 'product_ID', range(1, len(df) + 1))
 
-#print(df.shape)
-
 # We only take into account the 'title' column to find the duplicates.
 data = df[['product_ID', 'model_ID', 'title']].copy()
 #print(data.shape)
@@ -382,11 +347,6 @@ for model_ID, group in data_clean.groupby('model_ID'):
                 true_duplicates.add(pair)
 
 print(f"Number of true duplicate pairs: {len(true_duplicates)}")
-
-#%% k LOOP SHOULD START HERE
-B = 1000        # Number of bootstraps
-b_frac = 0.63   # Fraction of products to sample in each bootstrap
-
 
 # Now, we create character shingles of size k  and model words for each title in the cleaned dataset.
 mw_stopwords = {"720p","1080p","4k","3d","60hz","120hz","240hz","600hz"}
@@ -413,7 +373,6 @@ for pid in data_clean['product_ID']:
     features = model_words.union(shingles)
     product_feature_IDs[pid] = {feature_ID[feature] for feature in features}
 
-# n_hashes LOOP SHOULD START HERE
 n_hashes = 100    # We define the hash functions for MinHashing.
 P = 2**31 - 1                   # A large prime number that is larger than the number of unique model words.
 hash_funcs = []
@@ -439,8 +398,9 @@ signature_matrix = create_signature_matrix(product_feature_IDs, hash_funcs)
 r = 5                   # Rows per band
 b = n_hashes // r       # Number of bands
 
+B = 1000        # Number of bootstraps
+b_frac = 0.63   # Fraction of products to sample in each bootstrap
 results_per_t = {t: [] for t in [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]}
-
 for bootstrap in range(B):
     sample_size = int(b_frac * len(data_clean))
     boot_ids = np.random.choice(data_clean['product_ID'], size = sample_size, replace = True)
@@ -479,8 +439,6 @@ for t in [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]:
     print(f"95% Confidence Interval for F1-score: ({CI_lb:.4f}, {CI_ub:.4f})")
     print("--------------------------------------------------")
 
-
-
 print("--------------------------------------------------")
 
 # Finally, we use Locality Sensitive Hashing (LSH) to find candidate pairs of duplicate products.
@@ -488,15 +446,11 @@ cand_pairs = find_cand_pairs(b, r, signature_matrix)
 print(f"Number of candidate pairs found: {len(cand_pairs)}")
 #print(list(cand_pairs)[:5])  # Print first 5 candidate pairs
 
-
 for t in [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]:
     # We compute the Jaccard similarity for each candidate pair and determine the predicted duplicates.
     pred_duplicates = compute_jaccard_for_cand_pairs(cand_pairs, product_feature_IDs, t)
     print(f"Number of predicted duplicate pairs: {len(pred_duplicates)}")
 
-    
-    
-    
     # Calculate performance
     TP, FP, FN, TN, pair_quality, pair_completeness, F_star, fraction_of_comparisons = calculate_performance(true_duplicates, pred_duplicates, cand_pairs, len(data_clean))
     print(f"Results for n_hashes = {n_hashes}, b = {b}, r = {r}, t = {t}:")
@@ -506,5 +460,3 @@ for t in [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]:
     print(f"F*-score: {F_star:.4f}")
     print(f"Fraction of Comparisons: {fraction_of_comparisons:.6f}")
     print("--------------------------------------------------")
-
-# %%
